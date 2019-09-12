@@ -1,0 +1,381 @@
+Few SQL quries used in retails data analysis
+
+
+select C.txn_strt_dt, C.hst_lctn_id,C.customer,C.Bill_ID   ,C.amount, C.CSTMR_UNQ_ID ,
+min(st.txn_strt_dt) FTD, sum(st.gross_sale_amt) GSV, 
+count(distinct st.txn_strt_dt) Num_of_Transaction
+from
+(
+select txn_strt_dt, hst_lctn_id,customer,Bill_ID   ,amount, CSTMR_UNQ_ID  from 
+ABFRL_CARTESIAN.Payments_data_new P left outer join 
+(
+select CSTMR_UNQ_ID,Bill_ID, txn_strt_dt, hst_lctn_id  from 
+(
+SELECT	CSTMR_UNQ_ID,trim(leading '0' from hst_sls_txn_id) Bill_ID, txn_strt_dt,hst_lctn_id
+FROM ABFRL_VRDM.SLS_TXN_LINE S join lctn L   ON S.STR_ID = L.LCTN_SK 
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm 
+where lctn_brnd_cd = 'PF' and 
+CAST(CAST(txn_strt_dt AS FORMAT 'MM/DD/YYYY') AS CHAR(14))
+in (select  Txn_date from ABFRL_CARTESIAN.Payments_data_new) and 
+Bill_ID in (select distinct bill_number from ABFRL_CARTESIAN.Payments_data_new) and hst_lctn_id in 
+(select distinct store_id from ABFRL_CARTESIAN.Payments_data_new ) ) A
+group by CSTMR_UNQ_ID,Bill_ID, txn_strt_dt, hst_lctn_id ) B  
+on trim(B.Bill_ID) = trim(P.Bill_number) and  
+cast(CAST(B.txn_strt_dt AS FORMAT 'MM/DD/YYYY') AS varchar(10))=
+Txn_date and
+trim(B.hst_lctn_id) =trim(p.store_id) ) C join SLS_TXN_LINE st on st.cstmr_unq_id = C.CSTMR_UNQ_ID
+join lctn L   ON st.STR_ID = L.LCTN_SK  where L.lctn_brnd_cd = 'PF'
+group by C.txn_strt_dt, C.hst_lctn_id,C.customer,C.Bill_ID   ,C.amount, C.CSTMR_UNQ_ID
+order by C.txn_strt_dt
+
+
+
+
+-- select Txn_date from ABFRL_CARTESIAN.Payments_data_new
+
+
+select distinct PARTY_PRMRY_HST_ID,q from 
+(
+select PARTY_PRMRY_HST_ID,q, count (PARTY_PRMRY_HST_ID) over (partition by PARTY_PRMRY_HST_ID) Num from (
+select distinct PARTY_PRMRY_HST_ID, q from 
+(
+SELECT	PARTY_PRMRY_HST_ID, txn_strt_dt q
+FROM ABFRL_VRDM.SLS_TXN_LINE S join lctn L   ON S.STR_ID = L.LCTN_SK 
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm 
+where NEW_REG_STORECODE = '100529' and lctn_brnd_cd = 'PF' and 
+cast(txn_strt_dt as date format 'dd\mm\yyyy') >=
+'01/04/2019' and 
+cast(txn_strt_dt as date format 'dd\mm\yyyy') >=
+' 30/04/2019' 
+) A 
+where 2>= (select  count(distinct t) from
+(
+SELECT	PARTY_PRMRY_HST_ID, txn_strt_dt t
+FROM ABFRL_VRDM.SLS_TXN_LINE S join lctn L   ON S.STR_ID = L.LCTN_SK 
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm 
+where NEW_REG_STORECODE = '100529' and lctn_brnd_cd = 'PF') B where A.PARTY_PRMRY_HST_ID = B.PARTY_PRMRY_HST_ID and A.q <= B.t)
+) C ) D where Num = 2   order by PARTY_PRMRY_HST_ID,q desc
+
+
+repeat customers last, last last
+
+select * from (
+select cstmr_unq_id, txn_strt_dt ,Ranking, count(cstmr_unq_id) over(partition by cstmr_unq_id) Counting from 
+
+(
+select distinct A.cstmr_unq_id ,A.txn_strt_dt , dense_rank() over (partition by A.cstmr_unq_id order by A.txn_strt_dt desc) Ranking
+from (
+select Q.cstmr_unq_id, Q.txn_strt_dt from ABFRL_VRDM.SLS_TXN_LINE Q join lctn W
+ on  Q.STR_ID = W.LCTN_SK where lctn_brnd_cd = 'PF'
+ and cstmr_unq_id in (SELECT	PARTY_PRMRY_HST_ID  
+FROM ABFRL_VRDM.SLS_TXN_LINE S join lctn L   ON S.STR_ID = L.LCTN_SK 
+join ABFRL_VRDM.cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm 
+where NEW_REG_STORECODE = '100529'  and 
+txn_strt_dt  >= '2019-04-01' and 
+txn_strt_dt >= '2019-04-30')
+
+ ) A 
+) B ) C
+where Counting >= 2 and Ranking <3
+order by cstmr_unq_id, Ranking
+
+-----------------------
+
+suits and blazers
+
+
+select distinct * from (
+select F.NEW_REG_STORECODE STORECODE,F.ORIGINAL_DOC_NUM Bill_num ,F.cstmr_unq_id Phone_number,  
+T.txn_strt_dt Transaction_date, MATERIAL_group_TEXT Product, 
+sum(gross_sale_amt) over (partition by F.NEW_REG_STORECODE,MATERIAL_group_TEXT ) Toal_Store_GSV_Per_Product, 
+count(F.ORIGINAL_DOC_NUM) over (partition by F.ORIGINAL_DOC_NUM) Bill_count,
+case 
+when Bill_count >= 4 then '>=4'
+when Bill_count >= 3 then '>=3'
+else 0 end Bill_count_bin,
+T.gross_sale_amt Gsv_per_product from (select distinct G.cstmr_unq_id,G.NEW_REG_STORECODE,G.ORIGINAL_DOC_NUM
+from (select X.cstmr_unq_id,X.NEW_REG_STORECODE,X.ORIGINAL_DOC_NUM,MATERIAL_group_TEXT, DIVISION, brand, material_group_key
+from (select S.cstmr_unq_id,C.NEW_REG_STORECODE,S.ORIGINAL_DOC_NUM,MATERIAL_group_TEXT, DIVISION, material_group_key 
+from SLS_TXN_LINE S  join  lctn L on L.lctn_sk = str_id  
+join MFL_RDM_MATERIAL M on  S.material= material_sk
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+ where lctn_brnd_cd = 'VH'  and txn_strt_dt  >= '2018-10-01' and 
+txn_strt_dt <= '2019-01-15' and M.MATERIAL_group_TEXT in ('Blazer' , 'Suits') and
+AFS_CUSTOMERGRP_NAME = 'EBO Consignment' and CHAIN_CODE_FOR_RETEK_NAME like '%VAN H%') X
+ join PRD_CLASS_DATA P on 
+ P.PRODUCT=X.material_group_key and
+P.SUBBRAND=X.DIVISION) G) F join ( select S.txn_strt_dt,S.gross_sale_amt,S.cstmr_unq_id,NEW_REG_STORECODE,
+ORIGINAL_DOC_NUM,MATERIAL_group_TEXT, DIVISION, material_group_key 
+from SLS_TXN_LINE S  join  lctn L on L.lctn_sk = str_id  
+join MFL_RDM_MATERIAL M on  S.material= material_sk
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+ where lctn_brnd_cd = 'VH'  and txn_strt_dt  >= '2018-10-01' and 
+txn_strt_dt <= '2019-01-15') T 
+on F.NEW_REG_STORECODE=T.NEW_REG_STORECODE and F.ORIGINAL_DOC_NUM=T.ORIGINAL_DOC_NUM ) z
+where Product in ('Blazer' , 'Suits') and Bill_count_bin in  ('>=3' ,'>=4')
+order by
+z.STORECODE,z.Bill_num ,z.Phone_number,  z.Transaction_date,  z.Product
+
+
+
+ Age Wise Data Split_MW - reg
+
+select Age_group, Classification_denim ,count(distinct PARTY_PRMRY_HST_ID), sum(gross_sale_amt)
+from
+(
+
+select 
+case 
+when AGE >0 and AGE<21 then '0-20'
+when AGE >20 and AGE<31 then '21-30'
+when AGE >30 and AGE<41 then '31-40'
+when AGE >40 and AGE<51 then '41-50'
+when AGE >50 and AGE<61 then '51-60'
+when AGE > 60 then '60+'
+else 'NA' end Age_group ,gross_sale_amt,
+case 
+when CLASSIFICATION = 'JEANS/DENIM' then 'Mens denim/Jeans'
+else 'Mens Non Denim' end Classification_denim, PARTY_PRMRY_HST_ID
+from  SLS_TXN_LINE S  join  lctn L on L.lctn_sk = str_id  
+join MFL_RDM_MATERIAL M on  S.material= material_sk
+-- join ABFRL_VRDM.STORE_ARM A on L.HST_LCTN_ID=A.CUSTOMER_NUMBER
+join cust_dim C on 
+S.cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+join PRD_CLASS_DATA P on 
+ P.PRODUCT=M.material_group_key and
+P.SUBBRAND=M.DIVISION where txn_strt_dt > '2018-06-01' and lctn_brnd_cd = 'AS' and RETEK_DEPARTMENTS not like '%kids%' and
+brand_division not like '%%Women%%') a group by Age_group, Classification_denim
+order by Age_group
+ 
+  
+
+
+Analysis for LP Trousers Customers
+
+select distinct Final_store Store_Code,REGION,AFS_CUSTOMERGRP_NAME,AREA_MANAGER_NAME,PARTY_PRMRY_HST_ID,PARTY_FULL_NM, Tier,LTP,LTD,Flag,
+Avg_Disc_percent average_Discount from (
+select distinct Final_store,PARTY_PRMRY_HST_ID,PARTY_FULL_NM, Tier,LTP,LTD,Avg_Disc_percent,
+case   
+when LTD > '2018-12-01' then 'Transacted in past 6 months'
+when LTD > '2018-06-01' and LTD < '2018-11-01'   then 'Last Transacted between June 2018 - Nov 2018'
+when LTD >  '2017-06-01' and LTD  < '2018-06-01' then 'Last Transacted between June 2017 - may 2018'
+when LTD < '2017-05-01' then 'Last Transacted before May 2017'
+ end Flag
+--avg(disc_per_per_item) over (partition by PARTY_PRMRY_HST_ID ) avg_
+from (
+select distinct
+CASE WHEN NEW_STORE IS NOT NULL THEN NEW_STORE ELSE NEW_REG_STORECODE END Final_store
+ ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,
+ (Discount_amt/Total_value)*100 Avg_Disc_percent ,
+ gross_sale_amt,UNIT_SLNG_PRC_AMT,
+ Tier,LTP,LTD from 
+(
+select distinct NEW_REG_STORECODE ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,DSCNT_AMT,gross_sale_amt,UNIT_SLNG_PRC_AMT,
+LYLTY_ACCNT_LVL Tier, 
+sum(gross_sale_amt) over(partition by PARTY_PRMRY_HST_ID) LTP , 
+max(txn_strt_dt) over (partition by PARTY_PRMRY_HST_ID) LTD,
+sum(DSCNT_AMT) over (partition by PARTY_PRMRY_HST_ID) Discount_amt,
+sum(UNIT_SLNG_PRC_AMT) over (partition by PARTY_PRMRY_HST_ID) Total_value
+from ABFRL_VRDM.SLS_TXN_LINE Q join lctn L
+ on  Q.STR_ID = L.LCTN_SK
+ join MFL_RDM_MATERIAL M on  Q.material= material_sk
+ join ABFRL_VRDM.cust_dim C on 
+cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+ where lctn_brnd_cd = 'LP' and UNIT_SLNG_PRC_AMT >0 and
+RT_SUBCL_KEY <> '1302' and C.data_src_cd = 1200) xx left join ABFRL_VRDM.CONVERTED_STORES on NEW_REG_STORECODE=OLD_STORE where Total_value >0
+) d) x join ABFRL_VRDM.STORE_ARM SA on x.Final_store = SA.CUSTOMER_NUMBER join 
+lctn on Final_store = HST_LCTN_ID
+where average_Discount >=20 
+
+
+
+
+
+
+Cohort Statement
+
+select distinct  ym, 
+dense_rank() over (partition by ym order by One_m) 
++ dense_rank() over (partition by ym order by One_m desc) - 2 One_mon,
+dense_rank() over (partition by ym order by two_m) 
++ dense_rank() over (partition by ym order by two_m desc) - 2 two_mon,
+dense_rank() over (partition by ym order by three_m) 
++ dense_rank() over (partition by ym order by three_m desc) - 2 three_mon,
+dense_rank() over (partition by ym order by six_m) 
++ dense_rank() over (partition by ym order by six_m desc) - 2 six_mon,
+dense_rank() over (partition by ym order by PARTY_PRMRY_HST_ID) 
++ dense_rank() over (partition by ym order by PARTY_PRMRY_HST_ID desc) - 1 New_reg_customers from (
+select cast (cast(ESD as format 'mmm') as char(3))||'-'||cast(extract(year from ESD) as varchar(4)) YM
+ ,PARTY_PRMRY_HST_ID,
+case when PARTY_RLTNSHP_STRT_DTTM is null then FTD else PARTY_RLTNSHP_STRT_DTTM end ESD,
+LTD,txn_strt_dt , 
+txn_strt_dt-ESD month(4) Months_diff,
+case when Months_diff = 1 then PARTY_PRMRY_HST_ID else 0 end One_m,
+case when Months_diff = 2 then PARTY_PRMRY_HST_ID else 0 end  two_m,
+case when Months_diff = 3 then PARTY_PRMRY_HST_ID else 0 end three_m,
+case when Months_diff = 6 then PARTY_PRMRY_HST_ID else 0 end  six_m,
+CASE 
+WHEN NEW_STORE IS NOT NULL THEN NEW_STORE ELSE NEW_REG_STORECODE END Final_store
+from 
+(
+select NEW_REG_STORECODE ,PARTY_PRMRY_HST_ID,PARTY_RLTNSHP_STRT_DTTM,gross_sale_amt,txn_strt_dt,
+LIFETIME_PURCHASES LTP, 
+max(txn_strt_dt) over (partition by PARTY_PRMRY_HST_ID) LTD,
+min(txn_strt_dt) over (partition by PARTY_PRMRY_HST_ID) FTD
+from ABFRL_VRDM.SLS_TXN_LINE Q join lctn L
+ on  Q.STR_ID = L.LCTN_SK
+ join MFL_RDM_MATERIAL M on  Q.material= material_sk
+ join ABFRL_VRDM.cust_dim C on 
+cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+ where lctn_brnd_cd = 'LP'  and
+RT_SUBCL_KEY <> '1302' and C.data_src_cd = 1200 ) xx 
+left join ABFRL_VRDM.CONVERTED_STORES on NEW_REG_STORECODE=OLD_STORE where
+ESD >=  '2018-04-01' ) vv 
+order by YM 
+
+
+
+
+
+
+Top 100 customers details
+
+select distinct  Final_store Store_Code,AFS_CUSTOMERGRP_NAME,PARTY_PRMRY_HST_ID,PARTY_BRTH_DT,PARTY_EMAIL_ID, Fav_category,
+PARTY_FULL_NM, Tier,LTP,LTD,dense_rank() over (partition by Store_Code order by LTP desc ) Ranking,LTTrxn_Times Twelve_months_visits
+qualify(dense_rank() over (partition by Store_Code order by LTP desc )) <=100   from (
+select distinct Final_store,PARTY_PRMRY_HST_ID,PARTY_FULL_NM, Tier,LTP,LTD,LTTrxn_Times,PARTY_BRTH_DT,PARTY_EMAIL_ID,CLASSIFICATION Fav_category,
+case   
+when LTD >= '2019-02-01' then 'Active'
+when LTD >= '2018-07-01' and LTD < '2019-02-01'   then 'Inactive'
+when LTD >=  '2017-07-01' and LTD  < '2018-07-01' then 'Last Transacted between June 2017 - may 2018'
+when LTD < '2017-07-01' then 'Last Transacted before May 2017'
+ end Flag,
+ case CLASSIFICATION
+when 'TROUSERS' then 1
+when 'SHIRTS' then 2
+when 'JEANS/DENIM' then 3
+when 'ACCESSORIES' then 4
+when 'T SHIRTS' then 5
+when 'DRESS' then 6
+when 'INNER WEAR' then 7
+when 'OTHERS' then 8
+when 'JACKETS' then 9
+when 'FOOTWEAR' then 10
+when 'SUITS / BLAZERS' then 11
+when 'WINTERWEAR' then 12 end CLASSIFICATION_ORDER
+qualify dense_rank() over (partition by PARTY_PRMRY_HST_ID order by CLASSIFICATION_ORDER) = 1  
+--avg(disc_per_per_item) over (partition by PARTY_PRMRY_HST_ID ) avg_
+from (
+select distinct
+CASE WHEN NEW_STORE IS NOT NULL THEN NEW_STORE ELSE NEW_REG_STORECODE END Final_store
+ ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,LTTrxn_Times,PARTY_BRTH_DT,PARTY_EMAIL_ID,
+ Tier,LTP,LTD,CLASSIFICATION
+ qualify(dense_rank() over (partition by PARTY_PRMRY_HST_ID order by Times_Category_bought desc)) = 1
+ from 
+(
+select distinct NEW_REG_STORECODE ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,PARTY_EMAIL_ID,
+ORIGINAL_DOC_NUM,CLASSIFICATION,DSCNT_AMT,PARTY_BRTH_DT, count(ITM_QTY) over (partition by PARTY_PRMRY_HST_ID,CLASSIFICATION ) Times_Category_bought,
+dense_rank() over (partition by PARTY_PRMRY_HST_ID order by txn_strt_dt ) 
++ dense_rank() over (partition by PARTY_PRMRY_HST_ID order by txn_strt_dt desc) 
+- 1 LTV,
+max(txn_strt_dt) over (partition by PARTY_PRMRY_HST_ID) LTD,
+LYLTY_ACCNT_LVL Tier, 
+LIFETIME_PURCHASES LTP
+from ABFRL_VRDM.SLS_TXN_LINE Q join lctn L
+ on  Q.STR_ID = L.LCTN_SK
+ join MFL_RDM_MATERIAL M on  Q.material = material_sk
+ join ABFRL_VRDM.cust_dim C on 
+cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+join PRD_CLASS_DATA P on 
+ P.PRODUCT=M.material_group_key and
+P.SUBBRAND=M.DIVISION
+ where lctn_brnd_cd = 'AS' and UNIT_SLNG_PRC_AMT >0 and
+RT_SUBCL_KEY <> '1302' and C.data_src_cd = 1200 and txn_strt_dt > '2018-07-01'
+) xx left join ABFRL_VRDM.CONVERTED_STORES on NEW_REG_STORECODE=OLD_STORE
+) d) x join ABFRL_VRDM.STORE_ARM SA on x.Final_store = SA.CUSTOMER_NUMBER join 
+lctn on Final_store = HST_LCTN_ID 
+order by Store_Code, Ranking
+order by Store_Code
+
+-------------------------------------------------------------------------------------------------------
+Non buyer list 
+
+
+select distinct  Final_store Store_Code,AFS_CUSTOMERGRP_NAME,PARTY_PRMRY_HST_ID,
+PARTY_FULL_NM, Tier,LTP,LTD   from (
+select distinct Final_store,PARTY_PRMRY_HST_ID,PARTY_FULL_NM, Tier,LTP,LTD,txn_strt_dt
+--avg(disc,_per_per_item) over (partition by PARTY_PRMRY_HST_ID ) avg_
+from (
+select distinct
+CASE WHEN NEW_STORE IS NOT NULL THEN NEW_STORE ELSE NEW_REG_STORECODE END Final_store
+ ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,PARTY_BRTH_DT,PARTY_EMAIL_ID,txn_strt_dt,
+ Tier,LTP,LTD from 
+(
+select distinct NEW_REG_STORECODE ,PARTY_PRMRY_HST_ID,PARTY_FULL_NM,PARTY_EMAIL_ID,
+ORIGINAL_DOC_NUM,CLASSIFICATION,DSCNT_AMT,PARTY_BRTH_DT,txn_strt_dt,
+max(txn_strt_dt) over (partition by PARTY_PRMRY_HST_ID) LTD,
+LYLTY_ACCNT_LVL Tier, 
+LIFETIME_PURCHASES LTP
+from ABFRL_VRDM.SLS_TXN_LINE Q join lctn L
+ on  Q.STR_ID = L.LCTN_SK
+ join MFL_RDM_MATERIAL M on  Q.material = material_sk
+ join ABFRL_VRDM.cust_dim C on 
+cstmr_unq_id = C.PARTY_PRMRY_HST_ID 
+and L.lctn_brnd_cd =  C.lylty_accnt_nm
+join PRD_CLASS_DATA P on 
+ P.PRODUCT=M.material_group_key and
+P.SUBBRAND=M.DIVISION
+ where lctn_brnd_cd = 'VH' and UNIT_SLNG_PRC_AMT >0  and 
+RT_SUBCL_KEY <> '1302' and C.data_src_cd = 1200 
+) xx left join ABFRL_VRDM.CONVERTED_STORES on NEW_REG_STORECODE=OLD_STORE
+) d) x join ABFRL_VRDM.STORE_ARM SA on x.Final_store = SA.CUSTOMER_NUMBER join 
+lctn on Final_store = HST_LCTN_ID where LTD>= '2018-08-01' and LTD <= '2019-02-01' and LCTN_STAT_NM = 'RAJASTHAN'
+order by Store_Code 
+
+---------------------------------------------------------------------------------------------------------------
+
+
+MH feedback
+
+select * from (
+sel
+FDBK_ID as FeedbackId, 
+FDBK_BRND_NM Brand, 
+FDBK_CSTMR_GET_LKNG_FLG as LookingFor, 
+FDBK_CSTMR_LKNG_FOR_CTGRY ProductCategory,
+FDBK_CSTMR_LKNG_FOR_DTLS Products,
+LOS_NOTFIND_PRODUCTS 
+FROM ABFRL_VRDM.MSSN_HPPNS_FDBK) t1 left join 
+(
+SELECT *
+FROM TABLE 
+(STRTOK_SPLIT_TO_TABLE
+(FDBK_ID,ABFRL_VRDM.MSSN_HPPNS_FDBK.FDBK_CSTMR_LKNG_FOR_DTLS, ',')
+   RETURNS (outkey VARCHAR(30) CHARACTER SET UNICODE
+           ,tokennum INTEGER
+           ,token VARCHAR(30) CHARACTER SET UNICODE)
+           ) AS dt)t2 on t1.FeedbackId=t2.outkey left JOIN
+		   (SELECT *
+FROM TABLE 
+(STRTOK_SPLIT_TO_TABLE
+(FDBK_ID,ABFRL_VRDM.MSSN_HPPNS_FDBK.LOS_NOTFIND_PRODUCTS, ',')
+   RETURNS (outkey VARCHAR(30) CHARACTER SET UNICODE
+           ,tokennum INTEGER
+           ,token VARCHAR(30) CHARACTER SET UNICODE)
+           ) AS dt) t3 on t2.outkey = t3.outkey and t2.token=t3.token  
