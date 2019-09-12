@@ -1,0 +1,80 @@
+1
+
+def answer_one():
+    
+    return df.Gold.argmax()
+answer_one()
+
+
+2
+
+def answer_two():
+    relative = df['Gold'] - df['Gold.1'].abs()
+    return relative.argmax()
+
+answer_two()
+
+3
+
+def answer_three():
+    sample = df[(df['Gold']>=1)&(df['Gold.1']>=1)]
+    relative = sample['Gold'] - sample['Gold.1'].abs()/sample['Gold.2']
+    return relative.argmax()
+answer_three()
+
+4
+
+def answer_four():
+    a= df['Gold.2']*3+df['Silver.2']*2+df['Bronze.2']
+    
+    return a
+
+5
+
+def answer_five():
+    a= census_df.groupby('STNAME')['CTYNAME'].count().argmax()
+    return a
+answer_five()
+
+
+6
+
+
+def answer_six():
+    a= census_df.groupby(['STNAME','CTYNAME'])['CENSUS2010POP'].sum()
+    b=census_df.copy()
+    return "YOUR ANSWER HERE"
+
+
+b=census_df.copy()
+a= census_df.groupby(['STNAME','CTYNAME'])['CENSUS2010POP'].sum().reset_index()
+b['Rank']=a.sort_values(['STNAME','CENSUS2010POP'],ascending = [True,False]).groupby('STNAME').cumcount()+1
+c=b[b['Rank']<=3].groupby('STNAME')['CENSUS2010POP'].sum().reset_index()
+c['xx']=1
+c['RN']=c.sort_values('CENSUS2010POP',ascending = False).groupby('xx').cumcount()+1
+d=c[c['RN']<4].sort_values('RN')['STNAME']
+d.tolist()
+
+
+7
+
+def answer_seven():
+    xxxx=census_df[census_df['CTYNAME']!=census_df['STNAME']].groupby('CTYNAME')['POPESTIMATE2010',
+       'POPESTIMATE2011', 'POPESTIMATE2012', 'POPESTIMATE2013',
+       'POPESTIMATE2014', 'POPESTIMATE2015'].sum().reset_index().copy()
+    a=xxxx.loc[:,['POPESTIMATE2010',
+       'POPESTIMATE2011', 'POPESTIMATE2012', 'POPESTIMATE2013',
+       'POPESTIMATE2014', 'POPESTIMATE2015']].apply(lambda row : max(row)-min(row),axis=1
+                                                   ).argmax()
+    b=xxxx.iloc[a,:]['CTYNAME']
+    return b
+answer_seven()
+
+
+import re
+def answer_eight():
+    sample= census_df[(census_df['REGION']<3)&(census_df['POPESTIMATE2015']>census_df['POPESTIMATE2014'])][['STNAME','CTYNAME']]
+    a=sample[sample['CTYNAME'].apply(lambda x : x.startswith('Washington'))]
+    return a
+
+answer_eight()

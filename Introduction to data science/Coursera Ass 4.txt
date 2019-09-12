@@ -1,0 +1,135 @@
+Acronyms= []
+Full_names=[]
+
+for key, value in states.items():
+    Acronyms.append(key)
+    Full_names.append(value)
+Sate_df=pd.DataFrame({'Acronyms':Acronyms,'Full_names':Full_names})
+
+
+
+City_Zhvi_AllHomes = pd.read_csv('City_Zhvi_AllHomes.csv')
+
+
+merge_1  =pd.merge(Sate_df,City_Zhvi_AllHomes,how='inner', left_on ='Acronyms',right_on='State')
+university_towns=pd.read_csv('university_towns.txt', sep="\t")
+
+
+def get_list_of_university_towns():
+    '''Returns a DataFrame of towns and the states they are in from the 
+    university_towns.txt list. The format of the DataFrame should be:
+    DataFrame( [ ["Michigan", "Ann Arbor"], ["Michigan", "Yipsilanti"] ], 
+    columns=["State", "RegionName"]  )
+    
+    The following cleaning needs to be done:
+
+    1. For "State", removing characters from "[" to the end.
+    2. For "RegionName", when applicable, removing every character from " (" to the end.
+    3. Depending on how you read the data, you may need to remove newline character '\n'. '''
+    import re
+    req_format=[]
+    with open('university_towns.txt') as file:
+        for line in file:
+            a=re.sub('\n','',line)
+            if a[-6:]=='[edit]':
+                state= line[:-7].strip()
+            elif '(' in line:
+                town = line[:line.index("(")-1].strip()
+                req_format.append([state,town])
+            else:
+                town = line
+                req_format.append([state,town])
+            University_twn = pd.DataFrame(req_format,columns=["State","RegionName"])
+    return University_twn
+get_list_of_university_towns()
+
+
+def get_recession_start():
+    '''Returns the year and quarter of the recession start time as a 
+    string value in a format such as 2005q3'''
+    GDP = pd.read_excel('gdplev.xls',skiprows=210)
+    GDP= GDP.iloc[2:,[4,5]]
+    GDP.columns=['Quater','GDP in curr billion $']
+
+    aa=GDP['GDP in curr billion $'].diff().apply(lambda x: 'Dec' if x <0 else 'inc')
+
+    aa=pd.DataFrame(aa)
+    aa['index']=aa.index
+    aa.reset_index(inplace=True)
+
+    for i in range(0,aa.shape[0]-1):
+        if aa.iloc[i][1] == 'Dec' and aa.iloc[i+1][1] =='Dec':
+            j=i+2
+            if aa.iloc[j][1] == 'inc' and aa.iloc[j+1][1] =='inc':
+                x=i-2
+                return GDP.iloc[x,0]
+            
+get_recession_start()
+
+    
+def get_recession_end():
+    '''Returns the year and quarter of the recession end time as a 
+    string value in a format such as 2005q3'''
+    GDP = pd.read_excel('gdplev.xls',skiprows=210)
+    GDP= GDP.iloc[2:,[4,5]]
+    GDP.columns=['Quater','GDP in curr billion $']
+
+    aa=GDP['GDP in curr billion $'].diff().apply(lambda x: 'Dec' if x <0 else 'inc')
+
+    aa=pd.DataFrame(aa)
+    aa['index']=aa.index
+    aa.reset_index(inplace=True)
+
+    for i in range(0,aa.shape[0]-1):
+        if aa.iloc[i][1] == 'Dec' and aa.iloc[i+1][1] =='Dec':
+            j=i+2
+            if aa.iloc[j][1] == 'inc' and aa.iloc[j+1][1] =='inc':
+                x=j+1
+       
+    return GDP.iloc[x,0]
+
+get_recession_end()
+
+
+
+def get_recession_bottom():
+    '''Returns the year and quarter of the recession bottom time as a 
+    string value in a format such as 2005q3'''
+    GDP = pd.read_excel('gdplev.xls',skiprows=210)
+    GDP= GDP.iloc[2:,[4,5]]
+    GDP.columns=['Quater','GDP in curr billion $']
+
+    aa=GDP['GDP in curr billion $'].diff().apply(lambda x: 'Dec' if x <0 else 'inc')
+
+    aa=pd.DataFrame(aa)
+    aa['index']=aa.index
+    aa.reset_index(inplace=True)
+
+    for i in range(0,aa.shape[0]-1):
+        if aa.iloc[i][1] == 'Dec' and aa.iloc[i+1][1] =='Dec':
+            j=i+2
+            if aa.iloc[j][1] == 'inc' and aa.iloc[j+1][1] =='inc':
+                x=j-1
+       
+    return GDP.iloc[x,0]
+get_recession_bottom()
+
+
+bb=merge_1.drop(['Acronyms','RegionID', 'Metro', 'CountyName', 'SizeRank'],axis=1)
+rr=pd.concat((merge_1[['Full_names','RegionName']].rename(columns={'Full_names':'State'}),bb.iloc[:,48:]), axis=1)
+col=[]
+for i in rr.columns:
+    if i[-2:] in ["01", "02", "03"]:
+            j = i[:4] + "q1"
+    elif i[-2:] in ["04", "05", "06"]:
+        j = i[:4] + "q2"
+    elif i[-2:] in ["07", "08", "09"]:
+        j = i[:4] + "q3"
+    elif i[-2:] in ["10", "11", "12"]:
+        j = i[:4] + "q4"
+    else:
+        j = i
+    col.append(j)
+rr.columns=col
+rr= rr.set_index(["State","RegionName"]).sort_index()
+rr = rr.groupby(level = 0, axis = 1).mean()
